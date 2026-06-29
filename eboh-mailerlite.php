@@ -3,7 +3,7 @@
  * Plugin Name:       EBOH MailerLite
  * Plugin URI:        https://github.com/harmrietmeijer/eboh-mailerlite
  * Description:       Nieuwsbrief-signup voor de EBOH-site via MailerLite Connect API. Beheer API-key en groep in Instellingen → EBOH MailerLite; embed met shortcode [eboh_mailerlite_form].
- * Version:           1.0.1
+ * Version:           1.0.2
  * Requires at least: 5.5
  * Requires PHP:      7.4
  * Author:            EBOH
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EBOH_ML_VERSION', '1.0.1' );
+define( 'EBOH_ML_VERSION', '1.0.2' );
 define( 'EBOH_ML_FILE', __FILE__ );
 define( 'EBOH_ML_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EBOH_ML_URL', plugin_dir_url( __FILE__ ) );
@@ -112,8 +112,8 @@ function eboh_ml_render_admin_page() {
 						<p class="description"><?php
 							printf(
 								/* translators: %s = MailerLite dashboard URL */
-								wp_kses_post( __( 'MailerLite Connect API-key. Aan te maken in je MailerLite-dashboard: %s', 'eboh-mailerlite' ) ),
-								'<a href="https://dashboard.mailerlite.com/integrations/api" target="_blank" rel="noopener noreferrer">Integrations → API</a>'
+								wp_kses_post( __( 'Plak hier je <strong>Connect API-token</strong> (niet de oude Classic API key). Aan te maken in: %s. Het token is een lange JWT-achtige string en begint meestal met <code>eyJ</code>. Een 32-tekens Classic-key levert 403 Forbidden op.', 'eboh-mailerlite' ) ),
+								'<a href="https://dashboard.mailerlite.com/integrations/api" target="_blank" rel="noopener noreferrer">MailerLite → Integrations → Developer API</a>'
 							);
 						?></p>
 					</td>
@@ -273,9 +273,27 @@ function eboh_ml_test_connection() {
 	if ( $code === 200 ) {
 		return array( 'ok' => true, 'message' => __( 'Verbinding met MailerLite geslaagd.', 'eboh-mailerlite' ) );
 	}
-	$body = json_decode( wp_remote_retrieve_body( $response ), true );
-	$msg  = isset( $body['message'] ) ? $body['message'] : sprintf( __( 'HTTP %d', 'eboh-mailerlite' ), $code );
-	return array( 'ok' => false, 'message' => $msg );
+
+	$raw  = wp_remote_retrieve_body( $response );
+	$body = json_decode( $raw, true );
+	$detail = isset( $body['message'] ) ? $body['message'] : ( is_string( $raw ) ? wp_strip_all_tags( substr( $raw, 0, 200 ) ) : '' );
+
+	$hint = '';
+	if ( $code === 401 || $code === 403 ) {
+		// Heuristiek: Classic API-keys zijn ~32 alfanumerieke tekens. Connect
+		// tokens zijn JWT-achtig (~200+ tekens, vaak met punten en beginnen met 'eyJ').
+		$looks_jwt = ( strpos( $api_key, '.' ) !== false ) || ( strpos( $api_key, 'eyJ' ) === 0 ) || strlen( $api_key ) > 80;
+		if ( ! $looks_jwt ) {
+			$hint = ' ' . __( 'Tip: deze plugin gebruikt de MailerLite Connect API. Genereer in MailerLite → Integrations → Developer API een **Connect**-token (lange JWT-achtige string), niet de Classic API-key.', 'eboh-mailerlite' );
+		} else {
+			$hint = ' ' . __( 'Tip: controleer in MailerLite of het token de juiste rechten (scopes) heeft, en of het niet verlopen is.', 'eboh-mailerlite' );
+		}
+	}
+
+	return array(
+		'ok'      => false,
+		'message' => sprintf( __( 'HTTP %1$d — %2$s%3$s', 'eboh-mailerlite' ), $code, $detail, $hint ),
+	);
 }
 
 /* =====================================================================
