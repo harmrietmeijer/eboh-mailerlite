@@ -1,0 +1,108 @@
+/* EBOH MailerLite — formulier-styling. Geschreven om te integreren met de
+   EBOH v2 dark-theme (zwarte achtergrond, rode accent), maar gebruikt CSS
+   variables zodat andere themes zelf kleuren kunnen overschrijven. */
+
+.eboh-ml-form {
+    --eboh-ml-bg: #050505;
+    --eboh-ml-fg: #ffffff;
+    --eboh-ml-muted: rgba(255, 255, 255, 0.65);
+    --eboh-ml-accent: #EA1928;
+    --eboh-ml-accent-dark: #D61422;
+    --eboh-ml-border: rgba(255, 255, 255, 0.18);
+    --eboh-ml-radius: 0;
+    --eboh-ml-font: inherit;
+
+    color: var(--eboh-ml-fg);
+    font-family: var(--eboh-ml-font);
+    width: 100%;
+}
+
+.eboh-ml-form__title {
+    margin: 0 0 12px;
+    font-size: 1.5rem;
+    line-height: 1.1;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.eboh-ml-form__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.eboh-ml-form__email {
+    flex: 1 1 240px;
+    min-height: 48px;
+    padding: 0 16px;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--eboh-ml-fg);
+    border: 1px solid var(--eboh-ml-border);
+    border-radius: var(--eboh-ml-radius);
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1.4;
+    transition: border-color 0.2s;
+}
+.eboh-ml-form__email:focus {
+    outline: none;
+    border-color: var(--eboh-ml-accent);
+}
+.eboh-ml-form__email::placeholder {
+    color: var(--eboh-ml-muted);
+}
+
+.eboh-ml-form__submit {
+    min-height: 48px;
+    padding: 0 24px;
+    background-color: var(--eboh-ml-accent);
+    color: var(--eboh-ml-fg);
+    border: none;
+    border-radius: var(--eboh-ml-radius);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.eboh-ml-form__submit:hover,
+.eboh-ml-form__submit:focus-visible {
+    background-color: var(--eboh-ml-accent-dark);
+    outline: none;
+}
+.eboh-ml-form__submit:disabled {
+    opacity: 0.55;
+    cursor: progress;
+}
+
+.eboh-ml-form__consent {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--eboh-ml-muted);
+}
+.eboh-ml-form__consent-input {
+    margin-top: 3px;
+    accent-color: var(--eboh-ml-accent);
+}
+
+.eboh-ml-form__feedback {
+    margin-top: 12px;
+    font-size: 14px;
+    min-height: 1.4em;
+}
+.eboh-ml-form__feedback--success { color: #5ee07a; }
+.eboh-ml-form__feedback--error   { color: var(--eboh-ml-accent); }
+
+.eboh-ml-form.is-submitted .eboh-ml-form__form { display: none; }
+
+@media (max-width: 480px) {
+    .eboh-ml-form__row { flex-direction: column; }
+    .eboh-ml-form__email,
+    .eboh-ml-form__submit { width: 100%; }
+}
