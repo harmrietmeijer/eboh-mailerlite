@@ -3,7 +3,7 @@
  * Plugin Name:       EBOH MailerLite
  * Plugin URI:        https://github.com/harmrietmeijer/eboh-mailerlite
  * Description:       Nieuwsbrief-signup voor de EBOH-site via MailerLite Connect API. Beheer API-key en groep in Instellingen → EBOH MailerLite; embed met shortcode [eboh_mailerlite_form].
- * Version:           1.0.0
+ * Version:           1.0.1
  * Requires at least: 5.5
  * Requires PHP:      7.4
  * Author:            EBOH
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EBOH_ML_VERSION', '1.0.0' );
+define( 'EBOH_ML_VERSION', '1.0.1' );
 define( 'EBOH_ML_FILE', __FILE__ );
 define( 'EBOH_ML_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EBOH_ML_URL', plugin_dir_url( __FILE__ ) );
@@ -296,9 +296,8 @@ function eboh_ml_shortcode_form( $atts ) {
 	$consent     = eboh_ml_get_setting( 'consent_text' );
 	$title       = $atts['title'];
 
-	// Markeer dat we de form-assets nodig hebben op deze pagina.
-	wp_enqueue_style( 'eboh-ml-form' );
-	wp_enqueue_script( 'eboh-ml-form' );
+	// Assets worden al via wp_enqueue_scripts globaal geladen — geen extra
+	// enqueue nodig hier (zou anders te laat zijn bij rendering in footer).
 
 	ob_start();
 	?>
@@ -332,13 +331,17 @@ function eboh_ml_shortcode_form( $atts ) {
 
 add_action( 'wp_enqueue_scripts', 'eboh_ml_register_assets' );
 function eboh_ml_register_assets() {
-	wp_register_style(
+	// Altijd enqueueën (niet alleen register): de shortcode kan via
+	// do_shortcode() in footer.php draaien, ná wp_head — dan komt een
+	// wp_enqueue_style-aanvraag binnen de shortcode te laat voor de <head>.
+	// De assets zijn klein (form.css ~2KB, form.js ~2KB).
+	wp_enqueue_style(
 		'eboh-ml-form',
 		EBOH_ML_URL . 'assets/form.css',
 		array(),
 		EBOH_ML_VERSION
 	);
-	wp_register_script(
+	wp_enqueue_script(
 		'eboh-ml-form',
 		EBOH_ML_URL . 'assets/form.js',
 		array(),
