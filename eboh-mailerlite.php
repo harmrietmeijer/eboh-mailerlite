@@ -3,7 +3,7 @@
  * Plugin Name:       EBOH MailerLite
  * Plugin URI:        https://github.com/harmrietmeijer/eboh-mailerlite
  * Description:       Nieuwsbrief-signup voor de EBOH-site via MailerLite Connect API. Beheer API-key en groep in Instellingen → EBOH MailerLite; embed met shortcode [eboh_mailerlite_form].
- * Version:           1.0.3
+ * Version:           1.0.4
  * Requires at least: 5.5
  * Requires PHP:      7.4
  * Author:            EBOH
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EBOH_ML_VERSION', '1.0.3' );
+define( 'EBOH_ML_VERSION', '1.0.4' );
 define( 'EBOH_ML_FILE', __FILE__ );
 define( 'EBOH_ML_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EBOH_ML_URL', plugin_dir_url( __FILE__ ) );
@@ -190,6 +190,18 @@ function eboh_ml_render_admin_page() {
 		<?php if ( $test_result ) : ?>
 			<div class="notice notice-<?php echo esc_attr( $test_result['ok'] ? 'success' : 'error' ); ?> inline">
 				<p><?php echo esc_html( $test_result['message'] ); ?></p>
+				<?php if ( ! $test_result['ok'] && ! empty( $test_result['raw'] ) ) : ?>
+					<details style="margin-top:8px;">
+						<summary style="cursor:pointer;"><?php esc_html_e( 'Debug-info', 'eboh-mailerlite' ); ?></summary>
+						<p style="margin:4px 0;"><strong>Server:</strong> <code><?php echo esc_html( $test_result['server'] ); ?></code> &nbsp;
+						<?php if ( ! empty( $test_result['cf_ray'] ) ) : ?>
+							<strong>cf-ray:</strong> <code><?php echo esc_html( $test_result['cf_ray'] ); ?></code>
+						<?php endif; ?></p>
+						<p style="margin:4px 0;"><strong>User-Agent:</strong> <code><?php echo esc_html( $test_result['request_ua'] ); ?></code></p>
+						<p style="margin:4px 0;"><strong>Response (eerste 500 tekens):</strong></p>
+						<pre style="background:#f6f7f7;padding:8px;overflow:auto;max-height:200px;font-size:11px;"><?php echo esc_html( substr( $test_result['raw'], 0, 500 ) ); ?></pre>
+					</details>
+				<?php endif; ?>
 			</div>
 		<?php endif; ?>
 	</div>
@@ -272,46 +284,62 @@ function eboh_ml_subscribe( $email, $group_id = '' ) {
 /**
  * Verbindingscheck voor de admin-pagina: probeert API-key te valideren via een
  * lightweight GET op /api/groups (geen schrijfactie).
+ *
+ * Returns array met 'ok', 'message' en (bij debug) 'raw' / 'headers' / 'request'.
  */
 function eboh_ml_test_connection() {
 	$api_key = eboh_ml_get_setting( 'api_key' );
 	if ( empty( $api_key ) ) {
 		return array( 'ok' => false, 'message' => __( 'Geen API-key ingesteld.', 'eboh-mailerlite' ) );
 	}
-	$response = wp_remote_get( 'https://connect.mailerlite.com/api/groups?limit=1', array(
-		'timeout' => 10,
-		'headers' => array(
+
+	$args = array(
+		'timeout'    => 15,
+		'user-agent' => 'EBOH-MailerLite/' . EBOH_ML_VERSION . ' (+' . home_url() . ')',
+		'headers'    => array(
 			'Accept'        => 'application/json',
+			'Content-Type'  => 'application/json',
 			'Authorization' => 'Bearer ' . $api_key,
 		),
-	) );
+	);
+	$response = wp_remote_get( 'https://connect.mailerlite.com/api/groups?limit=1', $args );
+
 	if ( is_wp_error( $response ) ) {
-		return array( 'ok' => false, 'message' => $response->get_error_message() );
+		return array( 'ok' => false, 'message' => 'WP_Error: ' . $response->get_error_message() );
 	}
-	$code = wp_remote_retrieve_response_code( $response );
+
+	$code     = wp_remote_retrieve_response_code( $response );
+	$raw      = wp_remote_retrieve_body( $response );
+	$headers  = wp_remote_retrieve_headers( $response );
+	$server   = is_object( $headers ) ? ( $headers->offsetExists( 'server' ) ? $headers['server'] : '' ) : ( $headers['server'] ?? '' );
+	$cf_ray   = is_object( $headers ) ? ( $headers->offsetExists( 'cf-ray' ) ? $headers['cf-ray'] : '' ) : ( $headers['cf-ray'] ?? '' );
+
 	if ( $code === 200 ) {
 		return array( 'ok' => true, 'message' => __( 'Verbinding met MailerLite geslaagd.', 'eboh-mailerlite' ) );
 	}
 
-	$raw  = wp_remote_retrieve_body( $response );
-	$body = json_decode( $raw, true );
-	$detail = isset( $body['message'] ) ? $body['message'] : ( is_string( $raw ) ? wp_strip_all_tags( substr( $raw, 0, 200 ) ) : '' );
+	$body   = json_decode( $raw, true );
+	$detail = isset( $body['message'] ) ? $body['message'] : ( is_string( $raw ) ? wp_strip_all_tags( substr( $raw, 0, 300 ) ) : '' );
+	if ( empty( $detail ) ) { $detail = __( '(lege response-body)', 'eboh-mailerlite' ); }
 
 	$hint = '';
 	if ( $code === 401 || $code === 403 ) {
-		// Heuristiek: Classic API-keys zijn ~32 alfanumerieke tekens. Connect
-		// tokens zijn JWT-achtig (~200+ tekens, vaak met punten en beginnen met 'eyJ').
-		$looks_jwt = ( strpos( $api_key, '.' ) !== false ) || ( strpos( $api_key, 'eyJ' ) === 0 ) || strlen( $api_key ) > 80;
+		$looks_jwt = ( strpos( $api_key, '.' ) !== false ) && strlen( $api_key ) > 80;
 		if ( ! $looks_jwt ) {
-			$hint = ' ' . __( 'Tip: deze plugin gebruikt de MailerLite Connect API. Genereer in MailerLite → Integrations → Developer API een **Connect**-token (lange JWT-achtige string), niet de Classic API-key.', 'eboh-mailerlite' );
-		} else {
-			$hint = ' ' . __( 'Tip: controleer in MailerLite of het token de juiste rechten (scopes) heeft, en of het niet verlopen is.', 'eboh-mailerlite' );
+			$hint = ' ' . __( 'Tip: lijkt geen Connect-token (te kort / geen JWT-puntsegmenten). Gebruik een Connect-API-token uit MailerLite → Integrations → Developer API.', 'eboh-mailerlite' );
+		}
+		if ( ! empty( $cf_ray ) ) {
+			$hint .= ' ' . __( 'Let op: response komt van Cloudflare (cf-ray gezien). Een security-laag van je hosting of van MailerLite kan de Authorization-header strippen.', 'eboh-mailerlite' );
 		}
 	}
 
 	return array(
-		'ok'      => false,
-		'message' => sprintf( __( 'HTTP %1$d — %2$s%3$s', 'eboh-mailerlite' ), $code, $detail, $hint ),
+		'ok'         => false,
+		'message'    => sprintf( __( 'HTTP %1$d — %2$s%3$s', 'eboh-mailerlite' ), $code, $detail, $hint ),
+		'raw'        => $raw,
+		'server'     => (string) $server,
+		'cf_ray'     => (string) $cf_ray,
+		'request_ua' => $args['user-agent'],
 	);
 }
 
