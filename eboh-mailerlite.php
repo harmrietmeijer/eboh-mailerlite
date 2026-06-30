@@ -3,7 +3,7 @@
  * Plugin Name:       EBOH MailerLite
  * Plugin URI:        https://github.com/harmrietmeijer/eboh-mailerlite
  * Description:       Nieuwsbrief-signup voor de EBOH-site via MailerLite Connect API. Beheer API-key en groep in Instellingen → EBOH MailerLite; embed met shortcode [eboh_mailerlite_form].
- * Version:           1.0.2
+ * Version:           1.0.3
  * Requires at least: 5.5
  * Requires PHP:      7.4
  * Author:            EBOH
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EBOH_ML_VERSION', '1.0.2' );
+define( 'EBOH_ML_VERSION', '1.0.3' );
 define( 'EBOH_ML_FILE', __FILE__ );
 define( 'EBOH_ML_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EBOH_ML_URL', plugin_dir_url( __FILE__ ) );
@@ -162,6 +162,25 @@ function eboh_ml_render_admin_page() {
 
 		<hr>
 		<h2><?php esc_html_e( 'Verbinding testen', 'eboh-mailerlite' ); ?></h2>
+
+		<?php
+		// Token-diagnostiek: helpt onderscheiden tussen 'token niet opgeslagen',
+		// 'token afgekapt' en 'token-niet-geaccepteerd door MailerLite'.
+		$stored_key = isset( $opts['api_key'] ) ? $opts['api_key'] : '';
+		$key_len    = strlen( $stored_key );
+		$key_hint   = $stored_key
+			? sprintf( '%s… (eerste 12) — …%s (laatste 12) — totale lengte: %d tekens',
+				substr( $stored_key, 0, 12 ),
+				substr( $stored_key, -12 ),
+				$key_len )
+			: __( '(leeg)', 'eboh-mailerlite' );
+		?>
+		<p class="description">
+			<strong><?php esc_html_e( 'Opgeslagen token (gedeeltelijk):', 'eboh-mailerlite' ); ?></strong>
+			<code><?php echo esc_html( $key_hint ); ?></code><br>
+			<?php esc_html_e( 'Een Connect-token is meestal 800+ tekens (3 base64-segmenten gescheiden door punten). Veel korter? Dan is het waarschijnlijk een Classic-key of onvolledig geplakt.', 'eboh-mailerlite' ); ?>
+		</p>
+
 		<form method="post">
 			<?php wp_nonce_field( 'eboh_ml_test', 'eboh_ml_test_nonce' ); ?>
 			<p>
